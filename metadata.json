@@ -1,0 +1,46 @@
+{
+  "icon": "open-webui.svg",
+  "vm": {
+    "composefile": "docker-compose.yaml",
+    "exposes": {
+      "socket": "backend.sock"
+    }
+  },
+  "ui": {
+    "dashboard-tab": {
+      "title": "Open WebUI",
+      "src": "index.html",
+      "root": "ui"
+    }
+  },
+  "host": {
+    "binaries": [
+      {
+        "darwin": [
+          {
+            "path": "/darwin/install-ollama.sh"
+          }
+        ],
+        "linux": [
+          {
+            "path": "/linux/install-ollama.sh"
+          },
+          {
+            "path": "/linux/searxng/limiter.toml"
+          },
+          {
+            "path": "/linux/searxng/settings.yml"
+          },
+          {
+            "path": "/linux/searxng/uwsgi.ini"
+          }
+        ],
+        "windows": [
+          {
+            "path": "/windows/install-ollama.exe"
+          }
+        ]
+      }
+    ]
+  }
+}

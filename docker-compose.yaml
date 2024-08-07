@@ -1,0 +1,26 @@
+services:
+  rd-open-webui-ext:
+    image: ${DESKTOP_PLUGIN_IMAGE}
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./linux/searxng:/etc/searxng
+    restart: always
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - WEBUI_AUTH=False
+      - ENABLE_RAG_WEB_SEARCH=True
+      - RAG_WEB_SEARCH_ENGINE=duckduckgo
+      - DEFAULT_MODELS=tinyllama
+      - SEARXNG_QUERY_URL=http://host.docker.internal:8080
+    restart: always
+
+volumes:
+  open-webui:
