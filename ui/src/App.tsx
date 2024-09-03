@@ -16,9 +16,9 @@ export function App() {
 
   useEffect(() => {
     const run = async () => {
-      let binary = "install-ollama.sh";
+      let binary = "installer";
       if (ddClient.host.platform === 'win32') {
-        binary = "install-ollama.exe";
+        binary += ".exe";
       }
 
       await ddClient.extension.host?.cli.exec(binary, []);

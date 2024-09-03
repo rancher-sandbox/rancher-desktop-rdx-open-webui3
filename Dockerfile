@@ -1,11 +1,11 @@
 FROM golang:1.21-alpine AS builder
 ENV CGO_ENABLED=0
-WORKDIR /backend
-COPY backend/go.* .
 # Install necessary tools
 RUN apk update && \
     apk add --no-cache curl unzip
 
+WORKDIR /backend
+COPY backend/go.* .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go mod download
@@ -13,6 +13,22 @@ COPY backend/. .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath -ldflags="-s -w" -o bin/service
+
+WORKDIR /installer
+COPY installer/go.* .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
+COPY installer/. .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=linux go build -trimpath -ldflags="-s -w" -o bin/installer-linux
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=darwin go build -trimpath -ldflags="-s -w" -o bin/installer-darwin
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=windows go build -trimpath -ldflags="-s -w" -o bin/installer-windows.exe
 
 FROM --platform=$BUILDPLATFORM node:21.6-alpine3.18 AS client-builder
 WORKDIR /ui
@@ -44,9 +60,9 @@ COPY docker-compose.yaml .
 COPY metadata.json .
 COPY open-webui.svg .
 COPY --from=client-builder /ui/build ui
-COPY --chmod=0755 binaries/unix/install-ollama.sh /linux/install-ollama.sh
-COPY --chmod=0755 binaries/unix/install-ollama.sh /darwin/install-ollama.sh
-COPY --chmod=0755 binaries/windows/install-ollama.exe /windows/install-ollama.exe
+COPY --from=builder /installer/bin/installer-linux /linux/installer
+COPY --from=builder /installer/bin/installer-darwin /darwin/installer
+COPY --from=builder /installer/bin/installer-windows.exe /windows/installer.exe
 COPY /searxng/limiter.toml /linux/searxng/limiter.toml
 COPY /searxng/settings.yml /linux/searxng/settings.yml
 COPY /searxng/uwsgi.ini /linux/searxng/uwsgi.ini
