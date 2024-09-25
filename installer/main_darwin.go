@@ -9,10 +9,19 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
+
+	"golang.org/x/sys/unix"
+)
+
+const (
+	CTL_KERN      = "kern"
+	KERN_PROCARGS = 38
 )
 
 func init() {
 	installOllama = installOllamaDarwin
+	uninstallOllama = uninstallOllamaDarwin
 }
 
 func installOllamaDarwin(ctx context.Context, release string) (string, error) {
@@ -78,4 +87,72 @@ func installOllamaDarwin(ctx context.Context, release string) (string, error) {
 	succeeded = true
 
 	return executablePath, nil
+}
+
+func uninstallOllamaDarwin(ctx context.Context) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to find home: %w", err)
+	}
+	executablePath := filepath.Join(home, ".ollama", "ollama")
+
+	if err = terminateProcess(ctx, executablePath); err != nil {
+		return fmt.Errorf("error terminating existing ollama process: %w", err)
+	}
+	err = os.Remove(executablePath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
+func terminateProcess(ctx context.Context, executablePath string) error {
+	executableInfo, err := os.Stat(executablePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("failed to get executable info: %w", err)
+	}
+
+	procs, err := unix.SysctlKinfoProcSlice("kern.proc.all")
+	if err != nil {
+		return fmt.Errorf("failed to list processes: %w", err)
+	}
+	for _, proc := range procs {
+		pid := int(proc.Proc.P_pid)
+		buf, err := unix.SysctlRaw(CTL_KERN, KERN_PROCARGS, pid)
+		if err != nil {
+			if !errors.Is(err, unix.EINVAL) {
+				log.Printf("Failed to get command line of pid %d: %s", pid, err)
+			}
+			continue
+		}
+		// The buffer starts with a null-terminated executable path, plus
+		// command line arguments and things.
+		index := slices.Index(buf, 0)
+		if index < 0 {
+			// If we have unexpected data, don't fall over.
+			continue
+		}
+		procPath := string(buf[:index])
+		procInfo, err := os.Stat(procPath)
+		if err != nil {
+			continue
+		}
+		if os.SameFile(executableInfo, procInfo) {
+			process, err := os.FindProcess(pid)
+			if err != nil {
+				continue
+			}
+			err = process.Signal(unix.SIGTERM)
+			if err == nil {
+				log.Printf("Terminated process %d", pid)
+			} else if !errors.Is(err, unix.EINVAL) {
+				log.Printf("Ignoring failure to terminate pid %d: %s", pid, err)
+			}
+		}
+	}
+	return nil
 }

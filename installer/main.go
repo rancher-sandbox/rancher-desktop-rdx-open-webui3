@@ -19,30 +19,47 @@ const (
 )
 
 var (
+	uninstall      = flag.Bool("uninstall", false, "uninstall ollama")
 	releaseVersion = flag.String("release", "latest", "release to download")
 	// Install ollama if not already installed, and return the executable name.
 	installOllama func(ctx context.Context, release string) (string, error)
+	// Uninstall ollama if it's installed.
+	uninstallOllama func(ctx context.Context) error
 )
 
 func main() {
 	ctx := context.Background()
 	flag.Parse()
 
+	if *uninstall {
+		log.Printf("Uninstalling ollama...")
+		if err := uninstallOllama(ctx); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Printf("Installing ollama...")
+		if err := install(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func install(ctx context.Context) error {
 	log.Printf("Checking if %s returns a valid response...", checkURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checkURL, nil)
 	if err != nil {
-		log.Fatalf("Failed to check Ollama: %v", err)
+		return fmt.Errorf("failed to check Ollama: %v", err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil && resp.StatusCode < 400 {
 		defer resp.Body.Close()
 		log.Printf("Ollama seems to be running correctly.")
-		return
+		return nil
 	}
 
 	executablePath, err := installOllama(ctx, *releaseVersion)
 	if err != nil {
-		log.Fatalf("Failed to install ollama: %v", err)
+		return fmt.Errorf("failed to install ollama: %v", err)
 	}
 
 	// Do not wait for serveProc to complete.
@@ -50,14 +67,14 @@ func main() {
 	serveProc.Stdout = os.Stdout
 	serveProc.Stderr = os.Stderr
 	if err = serveProc.Start(); err != nil {
-		log.Fatalf("Failed to start ollama server: %v", err)
+		return fmt.Errorf("failed to start ollama server: %v", err)
 	}
 
 	log.Printf("Waiting for %s to succeed...", checkURL)
 	for {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, checkURL, nil)
 		if err != nil {
-			log.Fatalf("Failed to check Ollama: %v", err)
+			return fmt.Errorf("failed to check Ollama: %v", err)
 		}
 		resp, err := http.DefaultClient.Do(req)
 		if err == nil && resp.StatusCode < 400 {
@@ -71,8 +88,10 @@ func main() {
 	pullProc.Stdout = os.Stdout
 	pullProc.Stderr = os.Stderr
 	if err = pullProc.Run(); err != nil {
-		log.Fatalf("Failed to pull tinyllama: %v", err)
+		return fmt.Errorf("failed to pull tinyllama: %v", err)
 	}
+
+	return nil
 }
 
 type releaseInfo struct {

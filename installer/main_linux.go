@@ -12,10 +12,14 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+
+	"golang.org/x/sys/unix"
 )
 
 func init() {
 	installOllama = installOllamaLinux
+	uninstallOllama = uninstallOllamaLinux
 }
 
 func installOllamaLinux(ctx context.Context, release string) (string, error) {
@@ -133,4 +137,71 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 	succeeded = true
 
 	return executablePath, nil
+}
+
+func uninstallOllamaLinux(ctx context.Context) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to find home: %w", err)
+	}
+	installDir := filepath.Join(home, ".ollama", "ollama")
+
+	executablePath := filepath.Join(installDir, "bin", "ollama")
+	if err = terminateProcess(ctx, executablePath); err != nil {
+		return fmt.Errorf("error terminating existing ollama process: %w", err)
+	}
+
+	err = os.RemoveAll(installDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
+func terminateProcess(ctx context.Context, executablePath string) error {
+	executableInfo, err := os.Stat(executablePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("failed to get executable info: %w", err)
+	}
+
+	// Check /proc/<pid>/exe to see if they're the correct file.
+	pidfds, err := os.ReadDir("/proc")
+	if err != nil {
+		return fmt.Errorf("error listing processes: %w", err)
+	}
+	for _, pidfd := range pidfds {
+		if !pidfd.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(pidfd.Name())
+		if err != nil {
+			continue
+		}
+		exeInfo, err := os.Stat(filepath.Join("/proc", pidfd.Name(), "exe"))
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrPermission) {
+				log.Printf("Failed to get executable of process %s: %s", pidfd.Name(), err)
+			}
+			continue
+		}
+		if !os.SameFile(executableInfo, exeInfo) {
+			continue
+		}
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			continue
+		}
+		err = proc.Signal(unix.SIGTERM)
+		if err == nil {
+			log.Printf("Terminated process %d", pid)
+		} else if !errors.Is(err, unix.EINVAL) {
+			log.Printf("Ignoring failure to terminate pid %d: %s", pid, err)
+		}
+	}
+
+	return nil
 }

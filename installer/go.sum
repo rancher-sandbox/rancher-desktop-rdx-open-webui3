@@ -2,3 +2,5 @@ github.com/klauspost/compress v1.13.6 h1:P76CopJELS0TiO2mebmnzgWaajssP/EszplttgQ
 github.com/klauspost/compress v1.13.6/go.mod h1:/3/Vjq9QcHkK5uEr5lBEmyoZ1iFhe47etQ6QUkpK6sk=
 github.com/xenking/zipstream v1.0.1 h1:6LfcpXfxO9kAGi0a+2N5C0ZZ6jyG4XULPiogOM7gJBU=
 github.com/xenking/zipstream v1.0.1/go.mod h1:eV9JLfCRbQQUGcdipSENWByVYkPP8IAzuFiwBY+sChg=
+golang.org/x/sys v0.25.0 h1:r+8e+loiHxRqhXVl6ML1nO3l1+oFoWbnlu2Ehimmi34=
+golang.org/x/sys v0.25.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=

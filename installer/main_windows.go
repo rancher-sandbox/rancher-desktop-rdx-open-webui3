@@ -13,12 +13,15 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/xenking/zipstream"
+	"golang.org/x/sys/windows"
 )
 
 func init() {
 	installOllama = installOllamaWindows
+	uninstallOllama = uninstallOllamaWindows
 }
 
 func installOllamaWindows(ctx context.Context, release string) (string, error) {
@@ -112,4 +115,100 @@ func installOllamaWindows(ctx context.Context, release string) (string, error) {
 	succeeded = true
 
 	return executablePath, nil
+}
+
+func uninstallOllamaWindows(ctx context.Context) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to find home: %w", err)
+	}
+
+	installDir := filepath.Join(home, ".ollama", "ollama")
+	executablePath := filepath.Join(installDir, "ollama.exe")
+	if err = terminateProcess(ctx, executablePath); err != nil {
+		return fmt.Errorf("error terminating existing ollama process: %w", err)
+	}
+
+	err = os.RemoveAll(installDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
+// terminateProcess terminates the ollama process; this is required because on
+// Windows running processes cannot be deleted.
+func terminateProcess(ctx context.Context, executablePath string) error {
+
+	ollamaInfo, err := os.Stat(executablePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("error examining ollama executable: %w", err)
+	}
+
+	pids := make([]uint32, 4096)
+	// Try EnumProcesses until the number of pids returned is less than the
+	// buffer size.
+	for {
+		var bytesReturned uint32
+		err := windows.EnumProcesses(pids, &bytesReturned)
+		if err != nil || len(pids) < 1 {
+			return fmt.Errorf("failed to enumerate processes: %w", err)
+		}
+		pidsReturned := uintptr(bytesReturned) / unsafe.Sizeof(pids[0])
+		if pidsReturned < uintptr(len(pids)) {
+			// Remember to truncate the pids to only the valid set.
+			pids = pids[:pidsReturned]
+			break
+		}
+		pids = make([]uint32, len(pids)*2)
+	}
+
+	for _, pid := range pids {
+		// Do each iteration in a function so defer statements run faster.
+		err := (func() error {
+			hProc, err := windows.OpenProcess(
+				windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_TERMINATE,
+				false,
+				pid)
+			if err != nil {
+				log.Printf("Ignoring error opening process %d: %s", pid, err)
+				return nil
+			}
+			defer windows.CloseHandle(hProc)
+
+			nameBuf := make([]uint16, 1024)
+			for {
+				bufSize := uint32(len(nameBuf))
+				err = windows.QueryFullProcessImageName(hProc, 0, &nameBuf[0], &bufSize)
+				if err != nil {
+					return fmt.Errorf("error getting process %d executable: %w", pid, err)
+				}
+				if int(bufSize) < len(nameBuf) {
+					break
+				}
+				nameBuf = make([]uint16, len(nameBuf)*2)
+			}
+			executablePath := windows.UTF16ToString(nameBuf)
+			executableInfo, err := os.Stat(executablePath)
+			if err != nil {
+				return nil
+			}
+			if os.SameFile(ollamaInfo, executableInfo) {
+				if err = windows.TerminateProcess(hProc, 0); err != nil {
+					return fmt.Errorf("failed to terminate pid %d (%s): %w", pid, executablePath, err)
+				}
+			}
+
+			return nil
+		})()
+		if err != nil {
+			log.Printf("%s", err)
+		}
+	}
+
+	return nil
 }
