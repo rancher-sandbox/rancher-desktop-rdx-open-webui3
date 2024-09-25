@@ -87,7 +87,7 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 		info := header.FileInfo()
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err = os.MkdirAll(outPath, 0o755); err != nil {
+			if err = os.MkdirAll(outPath, info.Mode()); err != nil {
 				return "", fmt.Errorf("error extracting %s: failed to make directory: %w", header.Name, err)
 			}
 			if err = os.Chmod(outPath, header.FileInfo().Mode()); err != nil {

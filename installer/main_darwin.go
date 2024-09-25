@@ -36,6 +36,9 @@ func installOllamaDarwin(ctx context.Context, release string) (string, error) {
 	log.Printf("Downloading ollama from %s...", assetURL)
 
 	// For darwin, Ollama is a single executable.
+	if err = os.MkdirAll(filepath.Dir(executablePath), 0o755); err != nil {
+		return "", fmt.Errorf("failed to create ollama directory: %w", err)
+	}
 	file, err := os.OpenFile(executablePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
 	if err != nil {
 		return "", fmt.Errorf("failed to create executable: %w", err)
