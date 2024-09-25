@@ -25,7 +25,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     GOOS=linux go build -trimpath -ldflags="-s -w" -o bin/installer-linux
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=darwin go build -trimpath -ldflags="-s -w" -o bin/installer-darwin
+    GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/installer-darwin-amd64
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o bin/installer-darwin-arm64
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go run github.com/randall77/makefat@7ddd0e42c8442593c87c1705a5545099604008e5 \
+    bin/installer-darwin bin/installer-darwin-*
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=windows go build -trimpath -ldflags="-s -w" -o bin/installer-windows.exe
