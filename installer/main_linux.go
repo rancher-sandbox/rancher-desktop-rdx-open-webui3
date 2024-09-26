@@ -17,19 +17,28 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func init() {
-	installOllama = installOllamaLinux
-	uninstallOllama = uninstallOllamaLinux
+func findExecutable(ctx context.Context) string {
+	var potentialLocations []string
+
+	if installLocation, err := getInstallLocation(ctx); err == nil {
+		executablePath := filepath.Join(installLocation, "bin", "ollama")
+		potentialLocations = append(potentialLocations, executablePath)
+	}
+
+	potentialLocations = append(potentialLocations, "/usr/local/bin/ollama")
+
+	for _, location := range potentialLocations {
+		if _, err := os.Stat(location); err == nil {
+			// Found an existing ollama
+			return location
+		}
+	}
+	return ""
 }
 
-func installOllamaLinux(ctx context.Context, release string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to find home: %w", err)
-	}
+func installOllama(ctx context.Context, release, installPath string) (string, error) {
 	succeeded := false
-	outputDir := filepath.Join(home, ".ollama", "ollama")
-	executablePath := filepath.Join(outputDir, "bin", "ollama")
+	executablePath := filepath.Join(installPath, "bin", "ollama")
 
 	if _, err := os.Stat(executablePath); err == nil {
 		return executablePath, nil
@@ -40,7 +49,7 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 	defer func() {
 		if !succeeded {
 			// On failure, remove partially extracted files.
-			_ = os.RemoveAll(outputDir)
+			_ = os.RemoveAll(installPath)
 		}
 	}()
 
@@ -87,7 +96,7 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 		if !filepath.IsLocal(header.Name) {
 			return "", fmt.Errorf("error extracting archive: path %s: %w", header.Name, tar.ErrInsecurePath)
 		}
-		outPath := filepath.Join(outputDir, header.Name)
+		outPath := filepath.Join(installPath, header.Name)
 		info := header.FileInfo()
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -122,8 +131,8 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 	}
 
 	for _, link := range links {
-		newName := filepath.Join(outputDir, link.Name)
-		oldName := filepath.Join(outputDir, link.Linkname)
+		newName := filepath.Join(installPath, link.Name)
+		oldName := filepath.Join(installPath, link.Linkname)
 		if link.Typeflag == tar.TypeLink {
 			err = os.Link(oldName, newName)
 		} else {
@@ -139,12 +148,11 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 	return executablePath, nil
 }
 
-func uninstallOllamaLinux(ctx context.Context) error {
-	home, err := os.UserHomeDir()
+func uninstallOllama(ctx context.Context) error {
+	installDir, err := getInstallLocation(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to find home: %w", err)
+		return fmt.Errorf("failed to find ollama install: %w", err)
 	}
-	installDir := filepath.Join(home, ".ollama", "ollama")
 
 	executablePath := filepath.Join(installDir, "bin", "ollama")
 	if err = terminateProcess(ctx, executablePath); err != nil {

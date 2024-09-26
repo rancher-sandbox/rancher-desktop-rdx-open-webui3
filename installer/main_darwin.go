@@ -19,18 +19,35 @@ const (
 	KERN_PROCARGS = 38
 )
 
-func init() {
-	installOllama = installOllamaDarwin
-	uninstallOllama = uninstallOllamaDarwin
+// Find an existing install of ollama; this may be externally installed.
+// If not found, returns empty string.
+func findExecutable(ctx context.Context) string {
+	var potentialLocations []string
+
+	if installLocation, err := getInstallLocation(ctx); err == nil {
+		potentialLocations = append(potentialLocations, installLocation)
+	}
+
+	potentialLocations = append(potentialLocations,
+		"/usr/local/bin/ollama",
+		"/Applications/Ollama.app/Contents/Resources/ollama",
+	)
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		potentialLocations = append(potentialLocations,
+			filepath.Join(homeDir, "Applications/Ollama.app/Contents/Resources/ollama"))
+	}
+
+	for _, location := range potentialLocations {
+		if _, err := os.Stat(location); err == nil {
+			// Found an existing ollama
+			return location
+		}
+	}
+	return ""
 }
 
-func installOllamaDarwin(ctx context.Context, release string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to find home: %w", err)
-	}
-	executablePath := filepath.Join(home, ".ollama", "ollama")
-
+func installOllama(ctx context.Context, release, executablePath string) (string, error) {
 	if _, err := os.Stat(executablePath); err == nil {
 		return executablePath, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -89,17 +106,15 @@ func installOllamaDarwin(ctx context.Context, release string) (string, error) {
 	return executablePath, nil
 }
 
-func uninstallOllamaDarwin(ctx context.Context) error {
-	home, err := os.UserHomeDir()
+func uninstallOllama(ctx context.Context) error {
+	installPath, err := getInstallLocation(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to find home: %w", err)
+		return fmt.Errorf("failed to find ollama install: %w", err)
 	}
-	executablePath := filepath.Join(home, ".ollama", "ollama")
-
-	if err = terminateProcess(ctx, executablePath); err != nil {
+	if err = terminateProcess(ctx, installPath); err != nil {
 		return fmt.Errorf("error terminating existing ollama process: %w", err)
 	}
-	err = os.Remove(executablePath)
+	err = os.Remove(installPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

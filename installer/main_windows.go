@@ -19,19 +19,34 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func init() {
-	installOllama = installOllamaWindows
-	uninstallOllama = uninstallOllamaWindows
+func findExecutable(ctx context.Context) string {
+	var potentialLocations []string
+
+	if installLocation, err := getInstallLocation(ctx); err == nil {
+		executablePath := filepath.Join(installLocation, "ollama.exe")
+		potentialLocations = append(potentialLocations, executablePath)
+	}
+
+	programsDir, err := windows.KnownFolderPath(windows.FOLDERID_UserProgramFiles, windows.KF_FLAG_DEFAULT)
+	if err == nil {
+		// See Ollama setup source code:
+		// https://github.com/ollama/ollama/blob/03608cb46ecdccaf8c340c9390626a9d8fcc3c6b/app/ollama.iss#L33
+		// https://github.com/ollama/ollama/blob/03608cb46ecdccaf8c340c9390626a9d8fcc3c6b/app/ollama.iss#L92
+		potentialLocations = append(potentialLocations, filepath.Join(programsDir, "Ollama", "ollama.exe"))
+	}
+
+	for _, location := range potentialLocations {
+		if _, err = os.Stat(location); err == nil {
+			// Found an existing ollama
+			return location
+		}
+	}
+	return ""
 }
 
-func installOllamaWindows(ctx context.Context, release string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to find home: %w", err)
-	}
+func installOllama(ctx context.Context, release, installPath string) (string, error) {
 	succeeded := false
-	outputDir := filepath.Join(home, ".ollama", "ollama")
-	executablePath := filepath.Join(outputDir, "ollama.exe")
+	executablePath := filepath.Join(installPath, "ollama.exe")
 
 	if _, err := os.Stat(executablePath); err == nil {
 		return executablePath, nil
@@ -42,7 +57,7 @@ func installOllamaWindows(ctx context.Context, release string) (string, error) {
 	defer func() {
 		if !succeeded {
 			// On failure, remove partially extracted files.
-			_ = os.RemoveAll(outputDir)
+			_ = os.RemoveAll(installPath)
 		}
 	}()
 
@@ -79,7 +94,7 @@ func installOllamaWindows(ctx context.Context, release string) (string, error) {
 		if !filepath.IsLocal(info.Name) || strings.ContainsRune(info.Name, '\\') {
 			return "", fmt.Errorf("error extracting archive: %s: %w", info.Name, zip.ErrInsecurePath)
 		}
-		outPath := filepath.Join(outputDir, info.Name)
+		outPath := filepath.Join(installPath, info.Name)
 		if strings.HasSuffix(info.Name, "/") {
 			if err = os.MkdirAll(outPath, info.Mode()); err != nil {
 				return "", fmt.Errorf("error extracting archive: %s: %w", info.Name, err)
@@ -117,13 +132,11 @@ func installOllamaWindows(ctx context.Context, release string) (string, error) {
 	return executablePath, nil
 }
 
-func uninstallOllamaWindows(ctx context.Context) error {
-	home, err := os.UserHomeDir()
+func uninstallOllama(ctx context.Context) error {
+	installDir, err := getInstallLocation(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to find home: %w", err)
+		return fmt.Errorf("failed to find ollama install: %w", err)
 	}
-
-	installDir := filepath.Join(home, ".ollama", "ollama")
 	executablePath := filepath.Join(installDir, "ollama.exe")
 	if err = terminateProcess(ctx, executablePath); err != nil {
 		return fmt.Errorf("error terminating existing ollama process: %w", err)
