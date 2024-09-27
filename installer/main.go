@@ -26,11 +26,12 @@ const (
 	ModeInstall   Mode = "install"   // Install ollama to the given location.
 	ModeUninstall Mode = "uninstall" // Uninstall ollama that we have installed.
 	ModeLocate    Mode = "locate"    // Locate the install; if not found, print the default install location.
+	ModeStart     Mode = "start"     // Run ollama in a new process and return immediately.
 )
 
 var (
 	mode           = ModeInstall
-	allModes       = []Mode{ModeInstall, ModeUninstall, ModeLocate}
+	allModes       = []Mode{ModeInstall, ModeUninstall, ModeLocate, ModeStart}
 	releaseVersion = flag.String("release", "latest", "release to download when installing")
 	installPath    = flag.String("install-path", "", "directory to install ollama to")
 	pullModel      = flag.String("model", "tinyllama", "model to pull on install; set to empty string to skip")
@@ -47,6 +48,8 @@ func main() {
 			mode = ModeUninstall
 		case string(ModeLocate):
 			mode = ModeLocate
+		case string(ModeStart):
+			mode = ModeStart
 		default:
 			return fmt.Errorf("unexpected mode %s: should be one of %+v", s, allModes)
 		}
@@ -69,22 +72,37 @@ func main() {
 		if err := printLocation(ctx); err != nil {
 			log.Fatal(err)
 		}
+	case ModeStart:
+		if err := startOllama(ctx); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
 
-func install(ctx context.Context) error {
+// Check if Ollama is already running.
+func checkExistingInstance(ctx context.Context) (bool, error) {
 	log.Printf("Checking if %s returns a valid response...", checkURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checkURL, nil)
 	if err != nil {
-		return fmt.Errorf("failed to check Ollama: %v", err)
+		return false, fmt.Errorf("failed to check Ollama: %v", err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err == nil && resp.StatusCode < 400 {
 		defer resp.Body.Close()
 		log.Printf("Ollama seems to be running correctly.")
+		return true, nil
+	}
+	return false, nil
+}
+
+func install(ctx context.Context) error {
+	isRunning, err := checkExistingInstance(ctx)
+	if err != nil {
+		return err
+	}
+	if isRunning {
 		return nil
 	}
-
 	executablePath := findExecutable(ctx)
 	if executablePath == "" {
 		if *installPath == "" {
@@ -93,12 +111,15 @@ func install(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("failed to get default install location: %w", err)
 			}
+		} else {
+			// Always create a subdirectory (or file name).
+			*installPath = filepath.Join(*installPath, "ollama")
 		}
 
 		if err = saveInstallLocation(ctx, *installPath); err != nil {
 			return fmt.Errorf("failed to save install location: %w", err)
 		}
-		executablePath, err = installOllama(ctx, *releaseVersion, *installPath)
+		_, err = installOllama(ctx, *releaseVersion, *installPath)
 		if err != nil {
 			// If we fail to install, clear the state; don't catch errors here.
 			_ = saveInstallLocation(ctx, "")
@@ -106,35 +127,13 @@ func install(ctx context.Context) error {
 		}
 	}
 
-	// Do not wait for serveProc to complete.
-	serveProc := exec.Command(executablePath, "serve")
-	serveProc.Stdout = os.Stdout
-	serveProc.Stderr = os.Stderr
-	if err = serveProc.Start(); err != nil {
-		return fmt.Errorf("failed to start ollama server: %v", err)
-	}
-
-	log.Printf("Waiting for %s to succeed...", checkURL)
-	for {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, checkURL, nil)
-		if err != nil {
-			return fmt.Errorf("failed to check Ollama: %v", err)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err == nil && resp.StatusCode < 400 {
-			resp.Body.Close()
+	// To ensure the file has been completely written (and virus scanners are done
+	// scanning), try to run it a few times.
+	for i := 0; i < 10; i++ {
+		if err = exec.Command(executablePath, "--version").Run(); err == nil {
 			break
 		}
 		time.Sleep(time.Second)
-	}
-
-	if *pullModel != "" {
-		pullProc := exec.CommandContext(ctx, executablePath, "pull", *pullModel)
-		pullProc.Stdout = os.Stdout
-		pullProc.Stderr = os.Stderr
-		if err = pullProc.Run(); err != nil {
-			return fmt.Errorf("failed to pull %s: %v", *pullModel, err)
-		}
 	}
 
 	return nil
@@ -248,14 +247,64 @@ func saveInstallLocation(ctx context.Context, location string) error {
 	return nil
 }
 
-// Print the current install location, or the default install location if there
-// is no current install.
+// Print the current install location, or nothing if there is no current install.
 func printLocation(ctx context.Context) error {
 	location, err := getInstallLocation(ctx)
 	if err != nil {
 		return err
 	}
-	log.SetFlags(0)
-	log.Printf("%s", location)
+	if _, err := os.Stat(location); err == nil {
+		if _, err = fmt.Printf("%s", location); err != nil {
+			return fmt.Errorf("failed to output location: %w", err)
+		}
+	}
+	return nil
+}
+
+func startOllama(ctx context.Context) error {
+	isRunning, err := checkExistingInstance(ctx)
+	if err != nil {
+		return err
+	}
+	if isRunning {
+		return nil
+	}
+
+	executablePath := findExecutable(ctx)
+	if executablePath == "" {
+		return fmt.Errorf("failed to find ollama executable; was it installed?")
+	}
+
+	// Do not wait for serveProc to complete.
+	serveProc := exec.Command(executablePath, "serve")
+	serveProc.Stdout = os.Stdout
+	serveProc.Stderr = os.Stderr
+	if err = serveProc.Start(); err != nil {
+		return fmt.Errorf("failed to start ollama server: %v", err)
+	}
+
+	log.Printf("Waiting for %s to succeed...", checkURL)
+	for {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, checkURL, nil)
+		if err != nil {
+			return fmt.Errorf("failed to check Ollama: %v", err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && resp.StatusCode < 400 {
+			resp.Body.Close()
+			break
+		}
+		time.Sleep(time.Second)
+	}
+
+	if *pullModel != "" {
+		pullProc := exec.CommandContext(ctx, executablePath, "pull", *pullModel)
+		pullProc.Stdout = os.Stdout
+		pullProc.Stderr = os.Stderr
+		if err = pullProc.Run(); err != nil {
+			return fmt.Errorf("failed to pull %s: %v", *pullModel, err)
+		}
+	}
+
 	return nil
 }
