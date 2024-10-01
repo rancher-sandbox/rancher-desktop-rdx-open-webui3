@@ -41,6 +41,20 @@
           }
         ]
       }
-    ]
+    ],
+    "x-rd-uninstall": {
+      "darwin": [
+        "installer",
+        "-mode=uninstall"
+      ],
+      "linux": [
+        "installer",
+        "-mode=uninstall"
+      ],
+      "windows": [
+        "installer.exe",
+        "-mode=uninstall"
+      ]
+    }
   }
 }

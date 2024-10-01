@@ -5,8 +5,11 @@ const WebpageFrame = () => {
     <iframe
       src="http://localhost:3000"
       style={{
+        position: 'absolute',
+        left: '0',
+        top: '0',
         width: '100%',
-        height: '100vh', 
+        height: '100%',
         border: 'none', 
       }}
     />

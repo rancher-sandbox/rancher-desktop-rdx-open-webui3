@@ -1,0 +1,11 @@
+.install-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.install-wrapper .options {
+    display: flex;
+    flex-direction: column;
+    margin: 2em;
+}

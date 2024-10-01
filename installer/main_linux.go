@@ -12,20 +12,33 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+
+	"golang.org/x/sys/unix"
 )
 
-func init() {
-	installOllama = installOllamaLinux
+func findExecutable(ctx context.Context) string {
+	var potentialLocations []string
+
+	if installLocation, err := getInstallLocation(ctx); err == nil {
+		executablePath := filepath.Join(installLocation, "bin", "ollama")
+		potentialLocations = append(potentialLocations, executablePath)
+	}
+
+	potentialLocations = append(potentialLocations, "/usr/local/bin/ollama")
+
+	for _, location := range potentialLocations {
+		if _, err := os.Stat(location); err == nil {
+			// Found an existing ollama
+			return location
+		}
+	}
+	return ""
 }
 
-func installOllamaLinux(ctx context.Context, release string) (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to find home: %w", err)
-	}
+func installOllama(ctx context.Context, release, installPath string) (string, error) {
 	succeeded := false
-	outputDir := filepath.Join(home, ".ollama", "ollama")
-	executablePath := filepath.Join(outputDir, "bin", "ollama")
+	executablePath := filepath.Join(installPath, "bin", "ollama")
 
 	if _, err := os.Stat(executablePath); err == nil {
 		return executablePath, nil
@@ -36,7 +49,7 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 	defer func() {
 		if !succeeded {
 			// On failure, remove partially extracted files.
-			_ = os.RemoveAll(outputDir)
+			_ = os.RemoveAll(installPath)
 		}
 	}()
 
@@ -83,7 +96,7 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 		if !filepath.IsLocal(header.Name) {
 			return "", fmt.Errorf("error extracting archive: path %s: %w", header.Name, tar.ErrInsecurePath)
 		}
-		outPath := filepath.Join(outputDir, header.Name)
+		outPath := filepath.Join(installPath, header.Name)
 		info := header.FileInfo()
 		switch header.Typeflag {
 		case tar.TypeDir:
@@ -118,8 +131,8 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 	}
 
 	for _, link := range links {
-		newName := filepath.Join(outputDir, link.Name)
-		oldName := filepath.Join(outputDir, link.Linkname)
+		newName := filepath.Join(installPath, link.Name)
+		oldName := filepath.Join(installPath, link.Linkname)
 		if link.Typeflag == tar.TypeLink {
 			err = os.Link(oldName, newName)
 		} else {
@@ -133,4 +146,70 @@ func installOllamaLinux(ctx context.Context, release string) (string, error) {
 	succeeded = true
 
 	return executablePath, nil
+}
+
+func uninstallOllama(ctx context.Context) error {
+	installDir, err := getInstallLocation(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to find ollama install: %w", err)
+	}
+
+	executablePath := filepath.Join(installDir, "bin", "ollama")
+	if err = terminateProcess(ctx, executablePath); err != nil {
+		return fmt.Errorf("error terminating existing ollama process: %w", err)
+	}
+
+	err = os.RemoveAll(installDir)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return nil
+}
+
+func terminateProcess(ctx context.Context, executablePath string) error {
+	executableInfo, err := os.Stat(executablePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("failed to get executable info: %w", err)
+	}
+
+	// Check /proc/<pid>/exe to see if they're the correct file.
+	pidfds, err := os.ReadDir("/proc")
+	if err != nil {
+		return fmt.Errorf("error listing processes: %w", err)
+	}
+	for _, pidfd := range pidfds {
+		if !pidfd.IsDir() {
+			continue
+		}
+		pid, err := strconv.Atoi(pidfd.Name())
+		if err != nil {
+			continue
+		}
+		exeInfo, err := os.Stat(filepath.Join("/proc", pidfd.Name(), "exe"))
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, os.ErrPermission) {
+				log.Printf("Failed to get executable of process %s: %s", pidfd.Name(), err)
+			}
+			continue
+		}
+		if !os.SameFile(executableInfo, exeInfo) {
+			continue
+		}
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			continue
+		}
+		err = proc.Signal(unix.SIGTERM)
+		if err == nil {
+			log.Printf("Terminated process %d", pid)
+		} else if !errors.Is(err, unix.EINVAL) {
+			log.Printf("Ignoring failure to terminate pid %d: %s", pid, err)
+		}
+	}
+
+	return nil
 }

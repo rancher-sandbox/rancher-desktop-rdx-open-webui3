@@ -1,4 +1,5 @@
 FROM golang:1.21-alpine AS builder
+ARG COSMO_VERSION=3.9.2
 ENV CGO_ENABLED=0
 # Install necessary tools
 RUN apk update && \
@@ -22,7 +23,19 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY installer/. .
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    GOOS=linux go build -trimpath -ldflags="-s -w" -o bin/installer-linux
+    GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-w" -o bin/installer-linux-amd64
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-w" -o bin/installer-linux-arm64
+RUN mkdir -p /root/.cache/cosmocc
+RUN --mount=type=cache,target=/root/.cache/cosmocc \
+    curl --fail --location --output /root/.cache/cosmocc/cosmocc.zip \
+    https://github.com/jart/cosmopolitan/releases/download/${COSMO_VERSION}/cosmocc-${COSMO_VERSION}.zip
+RUN --mount=type=cache,target=/root/.cache/cosmocc \
+    unzip /root/.cache/cosmocc/cosmocc.zip
+ENV PATH="$PATH:/installer/bin"
+# Not sure why we need the extra `#"`, but it seems to fix cosmo's bootstrap script.
+RUN apelink -V linux -S '#"' -o bin/installer-linux bin/installer-linux-*
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o bin/installer-darwin-amd64
