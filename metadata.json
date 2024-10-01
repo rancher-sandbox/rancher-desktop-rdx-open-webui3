@@ -18,12 +18,12 @@
       {
         "darwin": [
           {
-            "path": "/darwin/install-ollama.sh"
+            "path": "/darwin/installer"
           }
         ],
         "linux": [
           {
-            "path": "/linux/install-ollama.sh"
+            "path": "/linux/installer"
           },
           {
             "path": "/linux/searxng/limiter.toml"
@@ -37,7 +37,7 @@
         ],
         "windows": [
           {
-            "path": "/windows/install-ollama.exe"
+            "path": "/windows/installer.exe"
           }
         ]
       }
