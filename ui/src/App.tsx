@@ -25,10 +25,10 @@ export function App() {
   useEffect(() => {
     (async () => {
       try {
-        const { stdout, stderr } = await runInstaller('--mode=locate');
+        const { stdout, stderr } = await runInstaller('--mode=check');
         stderr.trim() && console.error(stderr.trimEnd());
-        console.debug(`Got install location: ${stdout.trim() || '<none>'}`);
-        if (stdout.trim()) {
+        console.debug(`Installation check: ${stdout.trim()}`);
+        if (stdout.trim() === 'true') {
           // Install location exists; just start ollama.
           setInstalled(true);
         }
@@ -40,12 +40,12 @@ export function App() {
   });
 
   // Callback for <InstallView> to trigger the install.
-  function install(installLocation: string | undefined) {
+  function install() {
     (async () => {
       try {
-        console.log(`Installing ollama to ${installLocation ?? '<default>'}...`);
+        console.log(`Installing ollama to...`);
         setInstalling(true);
-        const { stdout, stderr } = await runInstaller('--mode=install', `--install-path=${installLocation ?? ''}`);
+        const { stdout, stderr } = await runInstaller('--mode=install');
         stderr.trim() && console.error(stderr.trimEnd());
         stdout.trim() && console.debug(stdout.trimEnd());
         setInstalled(true);

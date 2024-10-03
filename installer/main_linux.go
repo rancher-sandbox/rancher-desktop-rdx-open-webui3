@@ -20,7 +20,7 @@ import (
 func findExecutable(ctx context.Context) string {
 	var potentialLocations []string
 
-	if installLocation, err := getInstallLocation(ctx); err == nil {
+	if installLocation, err := getDefaultInstallLocation(ctx); err == nil {
 		executablePath := filepath.Join(installLocation, "bin", "ollama")
 		potentialLocations = append(potentialLocations, executablePath)
 	}
@@ -149,7 +149,7 @@ func installOllama(ctx context.Context, release, installPath string) (string, er
 }
 
 func uninstallOllama(ctx context.Context) error {
-	installDir, err := getInstallLocation(ctx)
+	installDir, err := getDefaultInstallLocation(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to find ollama install: %w", err)
 	}

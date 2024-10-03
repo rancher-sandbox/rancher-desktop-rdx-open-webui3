@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -23,17 +22,16 @@ const (
 type Mode string
 
 const (
-	ModeInstall   Mode = "install"   // Install ollama to the given location.
+	ModeInstall   Mode = "install"   // Install ollama to the default location.
 	ModeUninstall Mode = "uninstall" // Uninstall ollama that we have installed.
-	ModeLocate    Mode = "locate"    // Locate the install; if not found, print the default install location.
+	ModeCheck     Mode = "check"     // Check if Ollama is installed, printing "true" or "false".
 	ModeStart     Mode = "start"     // Run ollama in a new process and return immediately.
 )
 
 var (
 	mode           = ModeInstall
-	allModes       = []Mode{ModeInstall, ModeUninstall, ModeLocate, ModeStart}
+	allModes       = []Mode{ModeInstall, ModeUninstall, ModeCheck, ModeStart}
 	releaseVersion = flag.String("release", "latest", "release to download when installing")
-	installPath    = flag.String("install-path", "", "directory to install ollama to")
 	pullModel      = flag.String("model", "tinyllama", "model to pull on install; set to empty string to skip")
 )
 
@@ -46,8 +44,8 @@ func main() {
 			mode = ModeInstall
 		case string(ModeUninstall):
 			mode = ModeUninstall
-		case string(ModeLocate):
-			mode = ModeLocate
+		case string(ModeCheck):
+			mode = ModeCheck
 		case string(ModeStart):
 			mode = ModeStart
 		default:
@@ -68,8 +66,8 @@ func main() {
 		if err := uninstallOllama(ctx); err != nil {
 			log.Fatal(err)
 		}
-	case ModeLocate:
-		if err := printLocation(ctx); err != nil {
+	case ModeCheck:
+		if err := checkInstall(ctx); err != nil {
 			log.Fatal(err)
 		}
 	case ModeStart:
@@ -105,24 +103,14 @@ func install(ctx context.Context) error {
 	}
 	executablePath := findExecutable(ctx)
 	if executablePath == "" {
-		if *installPath == "" {
-			// If install path is not given, use the default install location.
-			*installPath, err = getInstallLocation(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to get default install location: %w", err)
-			}
-		} else {
-			// Always create a subdirectory (or file name).
-			*installPath = filepath.Join(*installPath, "ollama")
-		}
-
-		if err = saveInstallLocation(ctx, *installPath); err != nil {
-			return fmt.Errorf("failed to save install location: %w", err)
-		}
-		_, err = installOllama(ctx, *releaseVersion, *installPath)
+		// If a previous executable is not found, install it to the default
+		// location.
+		installLocation, err := getDefaultInstallLocation(ctx)
 		if err != nil {
-			// If we fail to install, clear the state; don't catch errors here.
-			_ = saveInstallLocation(ctx, "")
+			return fmt.Errorf("failed to get install location: %w", err)
+		}
+		_, err = installOllama(ctx, *releaseVersion, installLocation)
+		if err != nil {
 			return fmt.Errorf("failed to install ollama: %w", err)
 		}
 	}
@@ -205,59 +193,36 @@ func getReleaseAssetURL(ctx context.Context, release, assetName string) (string,
 	return "", fmt.Errorf("failed to find asset %q in release %q", assetName, release)
 }
 
-// Get the path of the file that stores the install location.
-func getInstallLocationFilePath(ctx context.Context) (string, error) {
+// Get the default install location.  Note that this does not return the
+// location of any externally installed copies of ollama.
+func getDefaultInstallLocation(ctx context.Context) (string, error) {
 	executable, err := os.Executable()
 	if err != nil {
 		return "", fmt.Errorf("failed to find executable path: %w", err)
 	}
 	extensionDir := filepath.Dir(filepath.Dir(executable))
-	return filepath.Join(extensionDir, "install-location.txt"), nil
+	return filepath.Join(extensionDir, "ollama"), nil
 }
 
-// Get the location ollama was installed in, or the default install location if
-// it is not currently installed.  Note that this does not return the ollama
-// location if it was installed externally.
-func getInstallLocation(ctx context.Context) (string, error) {
-	locationPath, err := getInstallLocationFilePath(ctx)
-	if err != nil {
-		return "", err
+// Print "true" if Ollama is installed, or "false" otherwise.
+func checkInstall(ctx context.Context) error {
+	isRunning, err := checkExistingInstance(ctx)
+	if err == nil && isRunning {
+		if _, err = fmt.Println("true"); err != nil {
+			return fmt.Errorf("failed to output state")
+		}
+		return nil
 	}
-	previousLocation, err := os.ReadFile(locationPath)
-	if err == nil {
-		if _, err = os.Stat(string(previousLocation)); err == nil {
-			return string(previousLocation), nil
+	location := findExecutable(ctx)
+	if location != "" {
+		if _, err := os.Stat(location); err == nil {
+			if _, err = fmt.Println("true"); err != nil {
+				return fmt.Errorf("failed to output location: %w", err)
+			}
+			return nil
 		}
 	}
-	if !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("failed to locate previous installation: %w", err)
-	}
-	// No stored location; return "ollama" next to the location file.
-	return filepath.Join(filepath.Dir(locationPath), "ollama"), nil
-}
-
-func saveInstallLocation(ctx context.Context, location string) error {
-	locationPath, err := getInstallLocationFilePath(ctx)
-	if err != nil {
-		return err
-	}
-	if err = os.WriteFile(locationPath, []byte(location), 0o644); err != nil {
-		return fmt.Errorf("failed to write install location: %w", err)
-	}
-	return nil
-}
-
-// Print the current install location, or nothing if there is no current install.
-func printLocation(ctx context.Context) error {
-	location, err := getInstallLocation(ctx)
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(location); err == nil {
-		if _, err = fmt.Printf("%s", location); err != nil {
-			return fmt.Errorf("failed to output location: %w", err)
-		}
-	}
+	fmt.Println("false")
 	return nil
 }
 

@@ -42,6 +42,20 @@
         ]
       }
     ],
+    "x-rd-install": {
+      "darwin": [
+        "installer",
+        "-mode=install"
+      ],
+      "linux": [
+        "installer",
+        "-mode=install"
+      ],
+      "windows": [
+        "installer.exe",
+        "-mode=install"
+      ]
+    },
     "x-rd-uninstall": {
       "darwin": [
         "installer",
