@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"time"
 )
 
@@ -26,11 +27,12 @@ const (
 	ModeUninstall Mode = "uninstall" // Uninstall ollama that we have installed.
 	ModeCheck     Mode = "check"     // Check if Ollama is installed, printing "true" or "false".
 	ModeStart     Mode = "start"     // Run ollama in a new process and return immediately.
+	ModeShutdown  Mode = "shutdown"  // Terminate any running ollama instrances.
 )
 
 var (
 	mode           = ModeInstall
-	allModes       = []Mode{ModeInstall, ModeUninstall, ModeCheck, ModeStart}
+	allModes       = []Mode{ModeInstall, ModeUninstall, ModeCheck, ModeStart, ModeShutdown}
 	releaseVersion = flag.String("release", "latest", "release to download when installing")
 	pullModel      = flag.String("model", "tinyllama", "model to pull on install; set to empty string to skip")
 )
@@ -39,16 +41,9 @@ func main() {
 	ctx := context.Background()
 	log.SetFlags(log.LUTC | log.Ldate | log.Ltime)
 	flag.Func("mode", fmt.Sprintf("operation mode; one of %+v (default %q)", allModes, mode), func(s string) error {
-		switch s {
-		case string(ModeInstall):
-			mode = ModeInstall
-		case string(ModeUninstall):
-			mode = ModeUninstall
-		case string(ModeCheck):
-			mode = ModeCheck
-		case string(ModeStart):
-			mode = ModeStart
-		default:
+		if i := slices.Index(allModes, Mode(s)); i > -1 {
+			mode = allModes[i]
+		} else {
 			return fmt.Errorf("unexpected mode %s: should be one of %+v", s, allModes)
 		}
 		return nil
@@ -72,6 +67,10 @@ func main() {
 		}
 	case ModeStart:
 		if err := startOllama(ctx); err != nil {
+			log.Fatal(err)
+		}
+	case ModeShutdown:
+		if err := shutdownOllama(ctx); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -271,5 +270,18 @@ func startOllama(ctx context.Context) error {
 		}
 	}
 
+	return nil
+}
+
+func shutdownOllama(ctx context.Context) error {
+	executablePath := findExecutable(ctx)
+	if executablePath == "" {
+		// When shutting down, it is not an error if it was not found.
+		return nil
+	}
+	err := terminateProcess(ctx, executablePath)
+	if err != nil {
+		return err
+	}
 	return nil
 }

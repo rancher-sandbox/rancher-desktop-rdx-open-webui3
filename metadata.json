@@ -69,6 +69,20 @@
         "installer.exe",
         "-mode=uninstall"
       ]
+    },
+    "x-rd-shutdown": {
+      "darwin": [
+        "installer",
+        "-mode=shutdown"
+      ],
+      "linux": [
+        "installer",
+        "-mode=shutdown"
+      ],
+      "windows": [
+        "installer.exe",
+        "-mode=shutdown"
+      ]
     }
   }
 }
