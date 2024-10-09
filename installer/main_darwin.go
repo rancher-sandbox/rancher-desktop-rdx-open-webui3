@@ -19,23 +19,25 @@ const (
 	KERN_PROCARGS = 38
 )
 
-// Find an existing install of ollama; this may be externally installed.
-// If not found, returns empty string.
-func findExecutable(ctx context.Context) string {
+// Find an existing install of ollama; if defaultOnly is false, this may include
+// externally installed copies of ollama.  If not found, returns empty string.
+func findExecutable(ctx context.Context, defaultOnly bool) string {
 	var potentialLocations []string
 
 	if installLocation, err := getDefaultInstallLocation(ctx); err == nil {
 		potentialLocations = append(potentialLocations, installLocation)
 	}
 
-	potentialLocations = append(potentialLocations,
-		"/usr/local/bin/ollama",
-		"/Applications/Ollama.app/Contents/Resources/ollama",
-	)
-
-	if homeDir, err := os.UserHomeDir(); err == nil {
+	if !defaultOnly {
 		potentialLocations = append(potentialLocations,
-			filepath.Join(homeDir, "Applications/Ollama.app/Contents/Resources/ollama"))
+			"/usr/local/bin/ollama",
+			"/Applications/Ollama.app/Contents/Resources/ollama",
+		)
+
+		if homeDir, err := os.UserHomeDir(); err == nil {
+			potentialLocations = append(potentialLocations,
+				filepath.Join(homeDir, "Applications/Ollama.app/Contents/Resources/ollama"))
+		}
 	}
 
 	for _, location := range potentialLocations {

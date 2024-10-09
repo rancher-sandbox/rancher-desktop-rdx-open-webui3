@@ -17,7 +17,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func findExecutable(ctx context.Context) string {
+func findExecutable(ctx context.Context, defaultOnly bool) string {
 	var potentialLocations []string
 
 	if installLocation, err := getDefaultInstallLocation(ctx); err == nil {
@@ -25,7 +25,9 @@ func findExecutable(ctx context.Context) string {
 		potentialLocations = append(potentialLocations, executablePath)
 	}
 
-	potentialLocations = append(potentialLocations, "/usr/local/bin/ollama")
+	if !defaultOnly {
+		potentialLocations = append(potentialLocations, "/usr/local/bin/ollama")
+	}
 
 	for _, location := range potentialLocations {
 		if _, err := os.Stat(location); err == nil {

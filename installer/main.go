@@ -100,7 +100,7 @@ func install(ctx context.Context) error {
 	if isRunning {
 		return nil
 	}
-	executablePath := findExecutable(ctx)
+	executablePath := findExecutable(ctx, false)
 	if executablePath == "" {
 		// If a previous executable is not found, install it to the default
 		// location.
@@ -212,7 +212,7 @@ func checkInstall(ctx context.Context) error {
 		}
 		return nil
 	}
-	location := findExecutable(ctx)
+	location := findExecutable(ctx, false)
 	if location != "" {
 		if _, err := os.Stat(location); err == nil {
 			if _, err = fmt.Println("true"); err != nil {
@@ -234,7 +234,7 @@ func startOllama(ctx context.Context) error {
 		return nil
 	}
 
-	executablePath := findExecutable(ctx)
+	executablePath := findExecutable(ctx, false)
 	if executablePath == "" {
 		return fmt.Errorf("failed to find ollama executable; was it installed?")
 	}
@@ -274,7 +274,7 @@ func startOllama(ctx context.Context) error {
 }
 
 func shutdownOllama(ctx context.Context) error {
-	executablePath := findExecutable(ctx)
+	executablePath := findExecutable(ctx, true)
 	if executablePath == "" {
 		// When shutting down, it is not an error if it was not found.
 		return nil
