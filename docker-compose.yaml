@@ -11,13 +11,15 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     ports:
-      - "3000:8080"
+      - "11500:8080"
     volumes:
       - open-webui:/app/backend/data
     environment:
       - WEBUI_AUTH=False
+      - WEBUI_SESSION_COOKIE_SAME_SITE=None
+      - WEBUI_SESSION_COOKIE_SECURE=True
       - ENABLE_RAG_WEB_SEARCH=True
-      - RAG_WEB_SEARCH_ENGINE=duckduckgo
+      - RAG_WEB_SEARCH_ENGINE=searxng
       - DEFAULT_MODELS=tinyllama
       - SEARXNG_QUERY_URL=http://host.docker.internal:8080
     restart: always
