@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func findExecutable(ctx context.Context) string {
+func findExecutable(ctx context.Context, defaultOnly bool) string {
 	var potentialLocations []string
 
 	if installLocation, err := getDefaultInstallLocation(ctx); err == nil {
@@ -27,16 +27,18 @@ func findExecutable(ctx context.Context) string {
 		potentialLocations = append(potentialLocations, executablePath)
 	}
 
-	programsDir, err := windows.KnownFolderPath(windows.FOLDERID_UserProgramFiles, windows.KF_FLAG_DEFAULT)
-	if err == nil {
-		// See Ollama setup source code:
-		// https://github.com/ollama/ollama/blob/03608cb46ecdccaf8c340c9390626a9d8fcc3c6b/app/ollama.iss#L33
-		// https://github.com/ollama/ollama/blob/03608cb46ecdccaf8c340c9390626a9d8fcc3c6b/app/ollama.iss#L92
-		potentialLocations = append(potentialLocations, filepath.Join(programsDir, "Ollama", "ollama.exe"))
+	if !defaultOnly {
+		programsDir, err := windows.KnownFolderPath(windows.FOLDERID_UserProgramFiles, windows.KF_FLAG_DEFAULT)
+		if err == nil {
+			// See Ollama setup source code:
+			// https://github.com/ollama/ollama/blob/03608cb46ecdccaf8c340c9390626a9d8fcc3c6b/app/ollama.iss#L33
+			// https://github.com/ollama/ollama/blob/03608cb46ecdccaf8c340c9390626a9d8fcc3c6b/app/ollama.iss#L92
+			potentialLocations = append(potentialLocations, filepath.Join(programsDir, "Ollama", "ollama.exe"))
+		}
 	}
 
 	for _, location := range potentialLocations {
-		if _, err = os.Stat(location); err == nil {
+		if _, err := os.Stat(location); err == nil {
 			// Found an existing ollama
 			return location
 		}
