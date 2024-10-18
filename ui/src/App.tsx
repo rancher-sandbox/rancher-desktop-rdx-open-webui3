@@ -8,6 +8,7 @@ const ddClient = createDockerDesktopClient();
 
 export function App() {
   const [error, setError] = useState('');
+  const [checked, setChecked] = useState(false);
   const [installing, setInstalling] = useState(false);
   const [installed, setInstalled] = useState(false);
   const [started, setStarted] = useState(false);
@@ -32,12 +33,13 @@ export function App() {
           // Install location exists; just start ollama.
           setInstalled(true);
         }
+        setChecked(true);
       } catch (ex) {
         console.error(ex);
         setError(`${ex}`);
       }
     })();
-  });
+  }, []);
 
   // Callback for <InstallView> to trigger the install.
   function install() {
@@ -76,7 +78,7 @@ export function App() {
   return (
     <>{
       !!error ? <div className="error">{error}</div> :
-        !installed && !installing ? <InstallView install={install} /> :
+        !installed && !installing && checked ? <InstallView install={install} /> :
           !started ? <LoadingView /> :
             <WebpageFrame />
     }</>
