@@ -20,7 +20,7 @@ services:
       - WEBUI_SESSION_COOKIE_SECURE=True
       - ENABLE_RAG_WEB_SEARCH=True
       - RAG_WEB_SEARCH_ENGINE=searxng
-            - DEFAULT_MODELS=tinyllama
+      - DEFAULT_MODELS=tinyllama
       - SEARXNG_QUERY_URL=http://host.docker.internal:11505
     restart: always
 
