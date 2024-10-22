@@ -4,7 +4,7 @@ services:
   searxng:
     image: searxng/searxng:latest
     ports:
-      - "8080:8080"
+      - "11505:8080"
     volumes:
       - ./linux/searxng:/etc/searxng
     restart: always
@@ -21,7 +21,7 @@ services:
       - ENABLE_RAG_WEB_SEARCH=True
       - RAG_WEB_SEARCH_ENGINE=searxng
       - DEFAULT_MODELS=tinyllama
-      - SEARXNG_QUERY_URL=http://host.docker.internal:8080
+      - SEARXNG_QUERY_URL=http://host.docker.internal:11505
     restart: always
 
 volumes:
