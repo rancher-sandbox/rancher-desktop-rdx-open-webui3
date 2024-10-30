@@ -67,4 +67,4 @@ COPY --from=builder /installer/bin/installer-windows.exe /windows/installer.exe
 COPY /searxng/limiter.toml /linux/searxng/limiter.toml
 COPY /searxng/settings.yml /linux/searxng/settings.yml
 COPY /searxng/uwsgi.ini /linux/searxng/uwsgi.ini
-CMD /service -socket /run/guest-services/backend.sock
+CMD ["/service -socket", "/run/guest-services/backend.sock"]
