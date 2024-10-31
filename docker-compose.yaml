@@ -7,7 +7,7 @@ services:
       - ./linux/searxng:/etc/searxng
     restart: always
   open-webui:
-    image: ghcr.io/open-webui/open-webui@sha256:caa86912d466525976110325f484b5b89074db189c15847b1a189fd9e1a4419a
+    image: ghcr.io/open-webui/open-webui@sha256:4dabf6994212b02e6651f129e39c513553016d519050ac951c195eccd3045cb9
     ports:
       - "11500:8080"
     volumes:
@@ -17,6 +17,7 @@ services:
       - WEBUI_SESSION_COOKIE_SAME_SITE=None
       - WEBUI_SESSION_COOKIE_SECURE=True
       - ENABLE_RAG_WEB_SEARCH=True
+      - ENABLE_EVALUATION_ARENA_MODELS=False
       - RAG_WEB_SEARCH_ENGINE=searxng
       - DEFAULT_MODELS=tinyllama
       - SEARXNG_QUERY_URL=http://host.docker.internal:11505
