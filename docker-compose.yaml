@@ -1,6 +1,4 @@
 services:
-  rd-open-webui-ext:
-    image: ${DESKTOP_PLUGIN_IMAGE}
   searxng:
     image: searxng/searxng:latest
     ports:

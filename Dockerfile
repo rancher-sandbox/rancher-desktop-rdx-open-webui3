@@ -5,16 +5,6 @@ ENV CGO_ENABLED=0
 RUN apk update && \
     apk add --no-cache curl unzip
 
-WORKDIR /backend
-COPY backend/go.* .
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
-COPY backend/. .
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go build -trimpath -ldflags="-s -w" -o bin/service
-
 WORKDIR /installer
 COPY installer/go.* .
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -56,7 +46,6 @@ LABEL org.opencontainers.image.title="Open WebUI" \
     com.docker.extension.categories="" \
     com.docker.extension.changelog=""
 
-COPY --from=builder /backend/bin/service /
 COPY docker-compose.yaml .
 COPY metadata.json .
 COPY open-webui.svg .
@@ -67,4 +56,3 @@ COPY --from=builder /installer/bin/installer-windows.exe /windows/installer.exe
 COPY /searxng/limiter.toml /linux/searxng/limiter.toml
 COPY /searxng/settings.yml /linux/searxng/settings.yml
 COPY /searxng/uwsgi.ini /linux/searxng/uwsgi.ini
-CMD ["/service -socket", "/run/guest-services/backend.sock"]
