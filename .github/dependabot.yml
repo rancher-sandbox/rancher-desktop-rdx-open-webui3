@@ -1,0 +1,19 @@
+version: 2
+updates:
+- package-ecosystem: "github-actions"
+  directory: "/.github"
+  schedule:
+    interval: "daily"
+  open-pull-requests-limit: 5
+
+- package-ecosystem: "npm"
+  directory: "/ui"
+  schedule:
+    interval: "daily"
+  open-pull-requests-limit: 5
+
+- package-ecosystem: "gomod"
+  directory: "/installer"
+  schedule:
+    interval: "daily"
+  open-pull-requests-limit: 5
