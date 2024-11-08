@@ -4,16 +4,16 @@ updates:
   directory: "/.github"
   schedule:
     interval: "daily"
-  open-pull-requests-limit: 5
+  open-pull-requests-limit: 12
 
 - package-ecosystem: "npm"
   directory: "/ui"
   schedule:
     interval: "daily"
-  open-pull-requests-limit: 5
+  open-pull-requests-limit: 12
 
 - package-ecosystem: "gomod"
   directory: "/installer"
   schedule:
     interval: "daily"
-  open-pull-requests-limit: 5
+  open-pull-requests-limit: 12
