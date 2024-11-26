@@ -1,0 +1,8 @@
+.suse-link {
+    color: #30ba78;
+    text-decoration: none;
+}
+
+.suse-link:hover {
+    text-decoration: underline;
+}
