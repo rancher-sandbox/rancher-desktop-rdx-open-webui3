@@ -3,6 +3,7 @@ import { createDockerDesktopClient } from '@docker/extension-api-client';
 import WebpageFrame from './WebpageFrame';
 import InstallView from './InstallView';
 import LoadingView from './LoadingView';
+import ToastNotification from './ToastNotification';
 
 const ddClient = createDockerDesktopClient();
 
@@ -76,11 +77,14 @@ export function App() {
   }, [installed]);
 
   return (
-    <>{
-      !!error ? <div className="error">{error}</div> :
-        !installed && !installing && checked ? <InstallView install={install} /> :
-          !started ? <LoadingView /> :
-            <WebpageFrame />
-    }</>
+    <>
+      {
+        !!error ? <div className="error">{error}</div> :
+          !installed && !installing && checked ? <InstallView install={install} /> :
+            !started ? <LoadingView /> :
+              <WebpageFrame />
+      }
+      <ToastNotification />
+    </>
   );
 }
