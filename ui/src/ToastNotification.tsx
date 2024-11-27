@@ -25,7 +25,7 @@ const ToastNotification = () => {
     };
 
     const shouldShowNotification = () => {
-        const dontShowAgain = localStorage.getItem(DONT_SHOW_AGAIN_KEY);
+        const dontShowAgain = !!localStorage.getItem(DONT_SHOW_AGAIN_KEY);
         const firstLaunchTimeStamp = localStorage.getItem(FIRST_LAUNCH_KEY);
         const currentTime = Date.now();
 
