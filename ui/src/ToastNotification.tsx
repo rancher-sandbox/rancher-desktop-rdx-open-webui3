@@ -10,7 +10,7 @@ const ToastNotification = () => {
     const NOTIFICATION_DELAY_MS = 5000; 
     const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
     const FIRST_LAUNCH_KEY = 'firstLaunchTimeStamp';
-    const DONT_SHOW_AGAIN_KEY = 'dontShowAgain';
+    const DONT_SHOW_AGAIN_KEY = 'dontShowSUSEAIAdvertisement';
     const SUSE_AI_URL = 'https://www.suse.com/products/ai/';
     const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
@@ -29,7 +29,7 @@ const ToastNotification = () => {
         const firstLaunchTimeStamp = localStorage.getItem(FIRST_LAUNCH_KEY);
         const currentTime = Date.now();
 
-        if (dontShowAgain === 'true') return false;
+        if (dontShowAgain) return false;
 
         if (!firstLaunchTimeStamp) {
             localStorage.setItem(FIRST_LAUNCH_KEY, currentTime.toString());
