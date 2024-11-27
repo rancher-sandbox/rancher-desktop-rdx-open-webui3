@@ -8,7 +8,7 @@ const ddClient = createDockerDesktopClient();
 
 const ToastNotification = () => {
     const NOTIFICATION_DELAY_MS = 5000; 
-    const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+    const TWO_WEEKS_MS = 2 * 7 * 24 * 60 * 60 * 1000;
     const FIRST_LAUNCH_KEY = 'firstLaunchTimeStamp';
     const DONT_SHOW_AGAIN_KEY = 'dontShowSUSEAIAdvertisement';
     const SUSE_AI_URL = 'https://www.suse.com/products/ai/';
